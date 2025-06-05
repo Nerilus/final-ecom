@@ -1,49 +1,150 @@
-# Détecteur de Somnolence
+# Détecteur de Somnolence et de Distractions
 
-Ce projet utilise la vision par ordinateur pour détecter la somnolence en analysant les yeux du conducteur en temps réel.
+Ce projet est un système avancé de détection de somnolence et de distractions qui utilise la vision par ordinateur pour surveiller le conducteur en temps réel.
 
 ## Fonctionnalités
 
-- Détection en temps réel des yeux via la webcam
-- Calcul du ratio d'aspect des yeux (EAR)
-- Alerte sonore en cas de détection de somnolence
-- Enregistrement des événements de somnolence dans un fichier log
-- Affichage visuel des points de repère des yeux
-- Affichage du ratio EAR en temps réel
+### 1. Détection de Somnolence
+- Surveillance en temps réel des yeux
+- Minuteur de 20 secondes avant l'alerte principale
+- Alarme sonore en cas de somnolence détectée
+- Affichage visuel de l'état des yeux
+
+### 2. Détection des Bâillements
+- Analyse de l'ouverture de la bouche
+- Calcul du ratio d'aspect de la bouche (MAR)
+- Compteur de bâillements consécutifs
+- Réinitialisation après 10 secondes sans bâillement
+
+### 3. Position de la Tête
+- Détection de la rotation horizontale (gauche/droite)
+- Détection de l'inclinaison verticale (haut/bas)
+- Utilisation de 8 points de référence
+- Affichage des mouvements combinés
+
+### 4. Détection du Téléphone
+- Reconnaissance des mains tenant un téléphone
+- Analyse de la position des doigts
+- Mesure du temps d'utilisation
+- Alerte après 5 secondes d'utilisation
+
+### 5. Système d'Alerte Intelligent
+- Trois niveaux d'alerte : NORMAL, WARNING, DANGER
+- Combinaison de tous les facteurs de risque
+- Alertes visuelles et sonores
+- Code couleur intuitif (vert, jaune, rouge)
 
 ## Prérequis
 
-- Python 3.8 ou supérieur
-- Webcam fonctionnelle
-- Fichier audio 'alarm.wav' dans le dossier data/
+### Matériel
+- Ordinateur avec webcam
+- Bonne luminosité
+- Position stable de la caméra
+
+### Logiciel
+- Python 3.x
+- Bibliothèques requises :
+  ```bash
+  opencv-python    # Vision par ordinateur
+  mediapipe       # Détection des points du visage et des mains
+  numpy           # Calculs numériques
+  pygame          # Alertes sonores
+  ```
 
 ## Installation
 
-1. Cloner le repository
-2. Installer les dépendances :
-```bash
-pip install -r requirements.txt
-```
-3. Ajouter un fichier audio 'alarm.wav' dans le dossier data/
+1. Clonez le repository :
+   ```bash
+   git clone [URL_DU_REPO]
+   cd drowsiness_detector
+   ```
+
+2. Installez les dépendances :
+   ```bash
+   pip3 install opencv-python mediapipe numpy pygame
+   ```
+
+3. Vérifiez la structure du projet :
+   ```
+   drowsiness_detector/
+   ├── main.py
+   └── data/
+       └── alarm.wav
+   ```
 
 ## Utilisation
 
-Pour lancer le détecteur de somnolence :
-```bash
-python main.py
+1. Lancez le programme :
+   ```bash
+   python3 main.py
+   ```
+
+2. Configuration optimale :
+   - Placez-vous à 50-60 cm de la caméra
+   - Assurez-vous d'avoir un bon éclairage
+   - Évitez les mouvements brusques
+   - Gardez la tête dans le champ de vision
+
+3. Fonctionnalités en action :
+   - Points verts : détection des yeux active
+   - Points rouges/bleus : détection des mains
+   - Compte à rebours : temps avant alerte
+   - Messages d'état en temps réel
+   - Rectangle rouge : alerte de niveau DANGER
+
+4. Commandes :
+   - 'q' : Quitter le programme
+   - L'alarme s'arrête automatiquement quand le danger est écarté
+
+## Paramètres Personnalisables
+
+Dans `main.py`, vous pouvez ajuster :
+
+```python
+# Seuils de détection
+EYE_CLOSED_THRESHOLD = 0.02        # Sensibilité yeux fermés
+MOUTH_OPEN_THRESHOLD = 0.4         # Seuil bâillement
+HEAD_ROTATION_THRESHOLD = 0.2      # Rotation de la tête
+HEAD_TILT_THRESHOLD = 0.1         # Inclinaison de la tête
+PHONE_DETECTION_THRESHOLD = 5.0    # Temps avant alerte téléphone
+
+# Temps de détection
+EYES_CLOSED_TIME_THRESHOLD = 20.0  # Secondes yeux fermés
 ```
 
-- Appuyez sur 'q' pour quitter le programme
-- Le programme enregistre les événements de somnolence dans 'data/alerts.log'
+## Dépannage
 
-## Comment ça marche
+1. Problèmes de caméra :
+   - Vérifiez les permissions
+   - Fermez les autres applications utilisant la caméra
+   - Essayez un autre index de caméra (0 ou 1)
 
-1. Le programme utilise MediaPipe pour détecter les points de repère du visage
-2. Il calcule le ratio d'aspect des yeux (EAR) pour déterminer si les yeux sont fermés
-3. Si les yeux restent fermés pendant trop longtemps, une alerte sonore est déclenchée
-4. Les événements sont enregistrés dans un fichier log
+2. Détection imprécise :
+   - Améliorez l'éclairage
+   - Ajustez votre position
+   - Modifiez les seuils de détection
 
-## Paramètres
+3. Faux positifs téléphone :
+   - Ajustez PHONE_DETECTION_THRESHOLD
+   - Évitez les mouvements rapides des mains
+   - Maintenez une distance constante
 
-- `EYE_AR_THRESH` : Seuil pour détecter si l'œil est fermé (défaut : 0.2)
-- `EYE_AR_CONSEC_FRAMES` : Nombre de frames consécutives avant l'alerte (défaut : 20) 
+## Contribution
+
+Les contributions sont bienvenues ! Vous pouvez :
+- Signaler des bugs
+- Proposer des améliorations
+- Ajouter de nouvelles fonctionnalités
+- Optimiser les algorithmes de détection
+
+## Sécurité
+
+Ce système est conçu comme une aide à la vigilance et ne remplace pas :
+- Une conduite responsable
+- Des pauses régulières
+- Le respect du code de la route
+- L'attention constante au volant
+
+## Licence
+
+Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails. 
