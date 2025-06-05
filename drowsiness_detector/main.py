@@ -19,95 +19,131 @@ face_mesh = mp.solutions.face_mesh.FaceMesh(
     min_tracking_confidence=0.5
 )
 
-# Indices des points de repère pour les yeux
-LEFT_EYE = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
-RIGHT_EYE = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
+# Points des yeux (haut et bas)
+LEFT_EYE_TOP = 386     # Point du haut de l'œil gauche
+LEFT_EYE_BOTTOM = 374  # Point du bas de l'œil gauche
+RIGHT_EYE_TOP = 159    # Point du haut de l'œil droit
+RIGHT_EYE_BOTTOM = 145 # Point du bas de l'œil droit
 
 # Paramètres de détection
-EYE_AR_THRESH = 0.2  # Seuil pour détecter si l'œil est fermé
-EYE_AR_CONSEC_FRAMES = 20  # Nombre de frames consécutives pour déclencher l'alerte
+EYE_CLOSED_THRESHOLD = 0.02  # Seuil pour détecter si l'œil est fermé (en pourcentage de la hauteur du visage)
+EYE_AR_CONSEC_FRAMES = 3    # Nombre de frames consécutives pour déclencher l'alerte
 
-def calculate_ear(landmarks, eye_indices):
-    """Calcule le ratio d'aspect de l'œil (EAR)"""
-    points = []
-    for i in eye_indices:
-        point = [landmarks[i].x, landmarks[i].y]
-        points.append(point)
+def calculate_eye_opening(landmarks, top_idx, bottom_idx, image_height):
+    """Calcule l'ouverture de l'œil en pourcentage de la hauteur de l'image"""
+    top = landmarks[top_idx]
+    bottom = landmarks[bottom_idx]
     
-    # Calcul des distances verticales
-    v1 = np.linalg.norm(np.array(points[1]) - np.array(points[5]))
-    v2 = np.linalg.norm(np.array(points[2]) - np.array(points[4]))
+    # Calcul de la distance verticale
+    distance = abs(top.y - bottom.y)
     
-    # Calcul de la distance horizontale
-    h = np.linalg.norm(np.array(points[0]) - np.array(points[3]))
+    # Normalisation par rapport à la hauteur de l'image
+    return distance
+
+def log_detection(message, ear_value=None):
+    """Enregistre les événements de détection"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_message = f"{timestamp}: {message}"
+    if ear_value is not None:
+        log_message += f" (EAR: {ear_value:.3f})"
     
-    # Calcul du ratio
-    ear = (v1 + v2) / (2.0 * h)
-    return ear
+    print(log_message)  # Affichage console
+    with open("data/detection.log", "a") as f:
+        f.write(log_message + "\n")
 
 def main():
-    cap = cv2.VideoCapture(0)
+    # Essayer d'abord avec l'index 1, puis 0 si ça ne marche pas
+    cap = cv2.VideoCapture(1)
+    if not cap.isOpened():
+        print("Tentative avec une autre caméra...")
+        cap = cv2.VideoCapture(0)
+    
     frame_counter = 0
     start_time = time.time()
     alert_active = False
+    last_log_time = time.time()
+    
+    if not cap.isOpened():
+        print("Impossible d'accéder à la caméra. Vérifiez les permissions et les connexions.")
+        return
+    
+    log_detection("Démarrage du système de détection de somnolence")
     
     while cap.isOpened():
         success, image = cap.read()
         if not success:
             print("Échec de la capture de la caméra.")
             break
+        
+        # Afficher les dimensions de l'image
+        height, width = image.shape[:2]
+        print(f"Dimensions de l'image: {width}x{height}")
             
         # Conversion en RGB pour MediaPipe
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         results = face_mesh.process(image_rgb)
         
-        if results.multi_face_landmarks:
+        # Debug - vérifier si le visage est détecté
+        if not results.multi_face_landmarks:
+            print("Aucun visage détecté")
+            cv2.putText(image, "AUCUN VISAGE DETECTE", (int(width/4), int(height/2)),
+                       cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 2)
+        else:
+            print("Visage détecté!")
             landmarks = results.multi_face_landmarks[0].landmark
             
-            # Calcul de l'EAR pour chaque œil
-            left_ear = calculate_ear(landmarks, LEFT_EYE)
-            right_ear = calculate_ear(landmarks, RIGHT_EYE)
+            # Debug - afficher tous les points du visage
+            for idx, landmark in enumerate(landmarks):
+                x = int(landmark.x * width)
+                y = int(landmark.y * height)
+                # Afficher les points des yeux en bleu
+                if idx in [LEFT_EYE_TOP, LEFT_EYE_BOTTOM, RIGHT_EYE_TOP, RIGHT_EYE_BOTTOM]:
+                    cv2.circle(image, (x, y), 3, (255, 0, 0), -1)
+                    cv2.putText(image, str(idx), (x+5, y+5),
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 0, 0), 1)
             
-            # Moyenne des deux yeux
-            avg_ear = (left_ear + right_ear) / 2.0
+            # Calcul de l'ouverture des yeux
+            left_eye_opening = calculate_eye_opening(landmarks, LEFT_EYE_TOP, LEFT_EYE_BOTTOM, height)
+            right_eye_opening = calculate_eye_opening(landmarks, RIGHT_EYE_TOP, RIGHT_EYE_BOTTOM, height)
             
-            # Dessin des yeux sur l'image
-            for eye in [LEFT_EYE, RIGHT_EYE]:
-                for i in eye:
-                    pt = landmarks[i]
-                    x = int(pt.x * image.shape[1])
-                    y = int(pt.y * image.shape[0])
-                    cv2.circle(image, (x, y), 1, (0, 255, 0), -1)
+            # Vérification si les yeux sont fermés
+            eyes_closed = (left_eye_opening < EYE_CLOSED_THRESHOLD and 
+                         right_eye_opening < EYE_CLOSED_THRESHOLD)
             
-            # Vérification de la somnolence
-            if avg_ear < EYE_AR_THRESH:
+            if eyes_closed:
                 frame_counter += 1
+                print(f"Yeux fermés! Frame {frame_counter}/{EYE_AR_CONSEC_FRAMES}")
+                cv2.putText(image, "YEUX FERMES!", (10, 60),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                
                 if frame_counter >= EYE_AR_CONSEC_FRAMES and not alert_active:
-                    # Déclenchement de l'alerte
-                    pygame.mixer.music.play(-1)  # -1 pour jouer en boucle
+                    print("ALERTE: Somnolence détectée!")
+                    pygame.mixer.music.play(-1)
                     alert_active = True
-                    
-                    # Enregistrement de l'événement
-                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    with open("data/alerts.log", "a") as f:
-                        f.write(f"{timestamp}: Somnolence détectée\n")
+                    cv2.rectangle(image, (0, 0), (width, height), (0, 0, 255), 3)
             else:
+                if frame_counter > 0:
+                    print("Yeux ouverts détectés")
                 frame_counter = 0
                 if alert_active:
                     pygame.mixer.music.stop()
                     alert_active = False
             
-            # Affichage du ratio EAR
-            cv2.putText(image, f"EAR: {avg_ear:.2f}", (10, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            # Affichage des valeurs
+            cv2.putText(image, f"Oeil G: {left_eye_opening:.4f}", (10, 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+            cv2.putText(image, f"Oeil D: {right_eye_opening:.4f}", (10, 90),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+            cv2.putText(image, f"Seuil: {EYE_CLOSED_THRESHOLD:.4f}", (10, 120),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+            
+            # Affichage du compteur de frames
+            if frame_counter > 0:
+                cv2.putText(image, f"Frames: {frame_counter}/{EYE_AR_CONSEC_FRAMES}", (10, 150),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         
-        # Affichage du temps écoulé
-        elapsed_time = int(time.time() - start_time)
-        cv2.putText(image, f"Temps: {elapsed_time}s", (10, 70),
-                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        
-        # Affichage de l'image
-        cv2.imshow('Détecteur de Somnolence', image)
+        # Afficher l'image
+        cv2.imshow('Debug Détecteur de Somnolence', image)
         
         # Sortie avec 'q'
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -118,7 +154,7 @@ def main():
     pygame.mixer.quit()
 
 if __name__ == "__main__":
-    # Création du dossier data s'il n'existe pas
+    # Création des dossiers et fichiers nécessaires
     os.makedirs("data", exist_ok=True)
     
     # Vérification du fichier son
