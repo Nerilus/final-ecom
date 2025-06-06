@@ -16,12 +16,12 @@ import os
 from pathlib import Path
 
 # Initialisation de pygame pour l'audio
-pygame.mixer.init()
-ALARM_SOUND = str(Path(__file__).parent / "data" / "alarm.wav")
-if not os.path.exists(ALARM_SOUND):
-    raise FileNotFoundError(f"Le fichier audio {ALARM_SOUND} n'existe pas")
-pygame.mixer.music.load(ALARM_SOUND)
-
+#pygame.mixer.init()
+#ALARM_SOUND = str(Path(__file__).parent / "data" / "alarm.wav")
+#if not os.path.exists(ALARM_SOUND):
+#    raise FileNotFoundError(f"Le fichier audio {ALARM_SOUND} n'existe pas")
+#pygame.mixer.music.load(ALARM_SOUND)
+ 
 # Import des fonctions de détection
 from detection_utils import (
     calculate_eye_opening,
@@ -88,14 +88,14 @@ def check_and_handle_alarm(alert_level: str, connection_id: str) -> bool:
         if connection_id not in danger_start_time:
             danger_start_time[connection_id] = current_time
         elif current_time - danger_start_time[connection_id] >= DANGER_THRESHOLD:
-            if not pygame.mixer.music.get_busy():
-                pygame.mixer.music.play(-1)  # -1 pour jouer en boucle
+           # if not pygame.mixer.music.get_busy():
+           #     pygame.mixer.music.play(-1)  # -1 pour jouer en boucle
             alarm_active = True
     else:
         if connection_id in danger_start_time:
             del danger_start_time[connection_id]
-            if pygame.mixer.music.get_busy():
-                pygame.mixer.music.stop()
+            #if pygame.mixer.music.get_busy():
+            #    pygame.mixer.music.stop()
 
     return alarm_active
 
