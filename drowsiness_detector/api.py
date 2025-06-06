@@ -11,6 +11,16 @@ import time
 from datetime import datetime
 import base64
 import json
+import pygame
+import os
+from pathlib import Path
+
+# Initialisation de pygame pour l'audio
+pygame.mixer.init()
+ALARM_SOUND = str(Path(__file__).parent / "data" / "alarm.wav")
+if not os.path.exists(ALARM_SOUND):
+    raise FileNotFoundError(f"Le fichier audio {ALARM_SOUND} n'existe pas")
+pygame.mixer.music.load(ALARM_SOUND)
 
 # Import des fonctions de détection
 from detection_utils import (
@@ -20,6 +30,10 @@ from detection_utils import (
     detect_phone_usage,
     determine_alert_level
 )
+
+# Variables globales pour la gestion de l'alarme
+danger_start_time = {}  # Pour suivre le début de l'état DANGER pour chaque connexion
+DANGER_THRESHOLD = 5  # Secondes avant de déclencher l'alarme
 
 app = FastAPI(
     title="Drowsiness Detection API",
@@ -63,8 +77,29 @@ class DetectionResponse(BaseModel):
     head_position: HeadPosition
     phone_detected: bool
     timestamp: str
+    alarm_active: bool = False
 
-def process_image(image_bytes: bytes) -> DetectionResponse:
+def check_and_handle_alarm(alert_level: str, connection_id: str) -> bool:
+    """Gère l'activation et la désactivation de l'alarme"""
+    current_time = time.time()
+    alarm_active = False
+
+    if alert_level == 'DANGER':
+        if connection_id not in danger_start_time:
+            danger_start_time[connection_id] = current_time
+        elif current_time - danger_start_time[connection_id] >= DANGER_THRESHOLD:
+            if not pygame.mixer.music.get_busy():
+                pygame.mixer.music.play(-1)  # -1 pour jouer en boucle
+            alarm_active = True
+    else:
+        if connection_id in danger_start_time:
+            del danger_start_time[connection_id]
+            if pygame.mixer.music.get_busy():
+                pygame.mixer.music.stop()
+
+    return alarm_active
+
+def process_image(image_bytes: bytes, connection_id: str) -> DetectionResponse:
     """Traite une image et retourne les résultats de détection"""
     try:
         # Conversion des bytes en image numpy
@@ -90,7 +125,8 @@ def process_image(image_bytes: bytes) -> DetectionResponse:
                     direction_v=None
                 ),
                 phone_detected=False,
-                timestamp=datetime.now().isoformat()
+                timestamp=datetime.now().isoformat(),
+                alarm_active=False
             )
 
         landmarks = face_results.multi_face_landmarks[0].landmark
@@ -124,6 +160,9 @@ def process_image(image_bytes: bytes) -> DetectionResponse:
             5.0 if phone_detected else 0
         )
 
+        # Gestion de l'alarme
+        alarm_active = check_and_handle_alarm(alert_level, connection_id)
+
         return DetectionResponse(
             alert_level=alert_level,
             eyes_state={
@@ -136,31 +175,37 @@ def process_image(image_bytes: bytes) -> DetectionResponse:
             },
             head_position=head_state,
             phone_detected=phone_detected,
-            timestamp=datetime.now().isoformat()
+            timestamp=datetime.now().isoformat(),
+            alarm_active=alarm_active
         )
 
     except Exception as e:
+        if connection_id in danger_start_time:
+            del danger_start_time[connection_id]
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """Endpoint WebSocket pour le flux vidéo en temps réel"""
     await websocket.accept()
+    connection_id = str(id(websocket))  # Identifiant unique pour cette connexion
     try:
         while True:
-            # Recevoir l'image en base64 du client
             data = await websocket.receive_text()
             try:
-                # Décoder l'image base64
                 image_data = base64.b64decode(data.split(',')[1])
-                # Traiter l'image
-                result = process_image(image_data)
-                # Envoyer le résultat
+                result = process_image(image_data, connection_id)
                 await websocket.send_json(result.dict())
             except Exception as e:
                 await websocket.send_json({"error": str(e)})
     except Exception as e:
         print(f"WebSocket error: {e}")
+    finally:
+        # Nettoyage lors de la déconnexion
+        if connection_id in danger_start_time:
+            del danger_start_time[connection_id]
+        if pygame.mixer.music.get_busy():
+            pygame.mixer.music.stop()
 
 @app.get("/")
 async def root():
@@ -176,6 +221,17 @@ async def root():
             #results { margin-top: 20px; }
             .error { color: red; }
             .success { color: green; }
+            .warning { color: orange; }
+            .danger { color: red; font-weight: bold; }
+            .alarm-active { 
+                animation: blink 1s infinite;
+                background-color: rgba(255, 0, 0, 0.2);
+                padding: 10px;
+                border-radius: 5px;
+            }
+            @keyframes blink {
+                50% { background-color: rgba(255, 0, 0, 0.4); }
+            }
         </style>
     </head>
     <body>
@@ -189,6 +245,13 @@ async def root():
             const results = document.getElementById('results');
             const status = document.getElementById('status');
             let ws = null;
+
+            // Fonction pour formater le niveau d'alerte
+            function formatAlertLevel(level, isAlarmActive) {
+                const className = level.toLowerCase();
+                const alarmClass = isAlarmActive ? 'alarm-active' : '';
+                return `<span class="${className} ${alarmClass}">${level}</span>`;
+            }
 
             // Démarrer la webcam avec gestion d'erreurs
             async function startCamera() {
@@ -237,10 +300,15 @@ async def root():
                         return;
                     }
                     results.innerHTML = `
-                        <p>Niveau d'alerte: <strong>${data.alert_level}</strong></p>
+                        <p>Niveau d'alerte: ${formatAlertLevel(data.alert_level, data.alarm_active)}</p>
                         <p>État des yeux: Gauche ${data.eyes_state.left.toFixed(3)}, Droite ${data.eyes_state.right.toFixed(3)}</p>
                         <p>État de la bouche: MAR ${data.mouth_state.mar.toFixed(3)}</p>
-                        <p>Téléphone détecté: ${data.phone_detected}</p>
+                        <p>Position de la tête: ${data.head_position.turned ? 'Tournée' : 'Normale'} 
+                            ${data.head_position.direction_h ? `(${data.head_position.direction_h})` : ''}, 
+                            ${data.head_position.tilted ? 'Inclinée' : 'Droite'}
+                            ${data.head_position.direction_v ? `(${data.head_position.direction_v})` : ''}</p>
+                        <p>Téléphone détecté: ${data.phone_detected ? 'Oui' : 'Non'}</p>
+                        ${data.alarm_active ? '<p class="danger alarm-active">⚠️ ALARME ACTIVE - Attention danger !</p>' : ''}
                     `;
                 };
 
@@ -271,7 +339,7 @@ async def root():
                         status.innerHTML += `<p class="error">Erreur d'envoi d'image: ${error.message}</p>`;
                     }
                 }
-                setTimeout(sendImages, 100); // Envoyer une image toutes les 100ms
+                setTimeout(sendImages, 100);
             }
 
             // Démarrer la caméra au chargement
