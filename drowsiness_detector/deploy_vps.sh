@@ -28,15 +28,17 @@ EOL
     pulseaudio -D --system
 }
 
-# Démarrage de Xvfb
-start_xvfb() {
-    echo "Démarrage de Xvfb..."
-    if pgrep Xvfb > /dev/null; then
-        pkill Xvfb
-    fi
-    Xvfb :0 -screen 0 1920x1080x24 > /dev/null 2>&1 &
-    export DISPLAY=:0
-    sleep 2
+# Création du script de démarrage Xvfb
+create_xvfb_script() {
+    echo "Création du script de démarrage Xvfb..."
+    cat > /usr/local/bin/start-xvfb.sh << 'EOL'
+#!/bin/bash
+if pgrep Xvfb > /dev/null; then
+    pkill Xvfb
+fi
+/usr/bin/Xvfb :0 -screen 0 1920x1080x24 > /dev/null 2>&1
+EOL
+    chmod +x /usr/local/bin/start-xvfb.sh
 }
 
 echo "1. Mise à jour du système..."
@@ -49,6 +51,9 @@ apt install -y xvfb # Pour le support d'affichage virtuel
 
 # Installation des dépendances audio
 setup_audio
+
+# Création du script Xvfb
+create_xvfb_script
 
 echo "3. Création du répertoire du projet..."
 PROJECT_DIR="/opt/drowsiness_detector"
@@ -65,9 +70,6 @@ pip install --upgrade pip
 pip install wheel setuptools
 pip install -r requirements.txt
 
-# Démarrage de Xvfb
-start_xvfb
-
 echo "5. Configuration du service systemd..."
 cat > /etc/systemd/system/drowsiness_detector.service << EOL
 [Unit]
@@ -81,8 +83,11 @@ WorkingDirectory=$PROJECT_DIR
 Environment=DISPLAY=:0
 Environment=PULSE_SERVER=unix:/run/pulse/native
 Environment=PYTHONPATH=$PROJECT_DIR
-ExecStartPre=/usr/bin/bash -c '/usr/bin/Xvfb :0 -screen 0 1920x1080x24 > /dev/null 2>&1 &'
+
+# Démarrage de Xvfb comme un service séparé
+ExecStartPre=/usr/local/bin/start-xvfb.sh
 ExecStart=$PROJECT_DIR/venv/bin/python main.py
+
 Restart=always
 RestartSec=3
 
@@ -100,6 +105,12 @@ curl -sSL https://raw.githubusercontent.com/netdata/netdata/master/packaging/ins
 
 echo "8. Démarrage des services..."
 systemctl daemon-reload
+
+# Arrêt des processus existants
+pkill -f Xvfb
+systemctl stop drowsiness_detector
+
+# Démarrage des services
 systemctl enable drowsiness_detector
 systemctl start drowsiness_detector
 
