@@ -1,5 +1,6 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, Dict, Union
 import cv2
@@ -11,17 +12,9 @@ import time
 from datetime import datetime
 import base64
 import json
-import pygame
 import os
 from pathlib import Path
 
-# Initialisation de pygame pour l'audio
-#pygame.mixer.init()
-#ALARM_SOUND = str(Path(__file__).parent / "data" / "alarm.wav")
-#if not os.path.exists(ALARM_SOUND):
-#    raise FileNotFoundError(f"Le fichier audio {ALARM_SOUND} n'existe pas")
-#pygame.mixer.music.load(ALARM_SOUND)
- 
 # Import des fonctions de détection
 from detection_utils import (
     calculate_eye_opening,
@@ -40,6 +33,10 @@ app = FastAPI(
     description="API pour la détection de somnolence et de distractions au volant",
     version="1.0.0"
 )
+
+# Configuration des fichiers statiques
+static_path = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
 # Configuration CORS
 app.add_middleware(
@@ -88,14 +85,10 @@ def check_and_handle_alarm(alert_level: str, connection_id: str) -> bool:
         if connection_id not in danger_start_time:
             danger_start_time[connection_id] = current_time
         elif current_time - danger_start_time[connection_id] >= DANGER_THRESHOLD:
-           # if not pygame.mixer.music.get_busy():
-           #     pygame.mixer.music.play(-1)  # -1 pour jouer en boucle
             alarm_active = True
     else:
         if connection_id in danger_start_time:
             del danger_start_time[connection_id]
-            #if pygame.mixer.music.get_busy():
-            #    pygame.mixer.music.stop()
 
     return alarm_active
 
@@ -204,8 +197,6 @@ async def websocket_endpoint(websocket: WebSocket):
         # Nettoyage lors de la déconnexion
         if connection_id in danger_start_time:
             del danger_start_time[connection_id]
-        if pygame.mixer.music.get_busy():
-            pygame.mixer.music.stop()
 
 @app.get("/")
 async def root():
@@ -428,16 +419,67 @@ async def root():
             const results = document.getElementById('results');
             const status = document.getElementById('status');
             let ws = null;
+            let audioContext = null;
+            let alarmSound = null;
+            let alarmIsPlaying = false;
+
+            // Charger et configurer le son d'alarme
+            async function setupAudio() {
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const response = await fetch('/static/alarm.wav');
+                    const arrayBuffer = await response.arrayBuffer();
+                    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                    alarmSound = audioBuffer;
+                } catch (error) {
+                    console.error('Erreur lors du chargement du son:', error);
+                }
+            }
+
+            // Jouer l'alarme
+            function playAlarm() {
+                if (!alarmIsPlaying && audioContext && alarmSound) {
+                    const source = audioContext.createBufferSource();
+                    source.buffer = alarmSound;
+                    source.loop = true;
+                    source.connect(audioContext.destination);
+                    source.start();
+                    alarmIsPlaying = true;
+                    source.onended = () => {
+                        alarmIsPlaying = false;
+                    };
+                }
+            }
+
+            // Arrêter l'alarme
+            function stopAlarm() {
+                if (audioContext) {
+                    audioContext.close().then(() => {
+                        audioContext = null;
+                        alarmIsPlaying = false;
+                        setupAudio();  // Réinitialiser l'audio pour la prochaine utilisation
+                    });
+                }
+            }
 
             function formatAlertLevel(level, isAlarmActive) {
                 const className = level.toLowerCase();
                 const badgeClass = `alert-badge ${className}`;
                 const alarmClass = isAlarmActive ? 'alarm-active' : '';
+                
+                // Gérer l'alarme sonore
+                if (isAlarmActive && !alarmIsPlaying) {
+                    playAlarm();
+                } else if (!isAlarmActive && alarmIsPlaying) {
+                    stopAlarm();
+                }
+                
                 return `<span class="${badgeClass}">${level}</span> ${isAlarmActive ? '<div class="alarm-active">⚠️ ALARME ACTIVE - Attention danger !</div>' : ''}`;
             }
 
             async function startCamera() {
                 try {
+                    await setupAudio();  // Initialiser l'audio
                     const stream = await navigator.mediaDevices.getUserMedia({ 
                         video: { 
                             width: 640,
