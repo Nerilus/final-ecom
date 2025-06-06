@@ -8,8 +8,14 @@ from datetime import datetime
 import os
 
 # Initialisation de pygame pour les alertes sonores
-pygame.mixer.init()
-pygame.mixer.music.load("data/alarm.wav")
+audio_available = False
+try:
+    pygame.mixer.init()
+    pygame.mixer.music.load("data/alarm.wav")
+    audio_available = True
+    print("Audio system initialized successfully")
+except Exception as e:
+    print(f"Warning: Could not initialize audio system ({str(e)}). Running in silent mode.")
 
 # Initialisation de MediaPipe Face Mesh
 face_mesh = mp.solutions.face_mesh.FaceMesh(
@@ -55,7 +61,7 @@ MOUTH_OPEN_THRESHOLD = 0.4     # Ajusté pour mieux détecter les bâillements
 MOUTH_ASPECT_RATIO_THRESHOLD = 0.6  # Ratio largeur/hauteur de la bouche
 HEAD_ROTATION_THRESHOLD = 0.2   # Ajusté pour la rotation de la tête
 HEAD_TILT_THRESHOLD = 0.1      # Seuil pour l'inclinaison de la tête
-EYES_CLOSED_TIME_THRESHOLD = 20.0
+EYES_CLOSED_TIME_THRESHOLD = 10.0
 PHONE_DETECTION_THRESHOLD = 5.0  # Temps en secondes pour détecter l'utilisation du téléphone
 
 # Niveaux d'alerte
@@ -323,12 +329,21 @@ def main():
             
             # Affichage des informations
             alert_color = ALERT_LEVELS[alert_level]['color']
-            if ALERT_LEVELS[alert_level]['sound'] and not alert_active:
-                pygame.mixer.music.play(-1)
-                alert_active = True
-            elif not ALERT_LEVELS[alert_level]['sound'] and alert_active:
-                pygame.mixer.music.stop()
-                alert_active = False
+            if ALERT_LEVELS[alert_level]['sound'] and not alert_active and audio_available:
+                try:
+                    pygame.mixer.music.play(-1)
+                    alert_active = True
+                except Exception as e:
+                    print(f"Warning: Could not play alert sound ({str(e)})")
+            elif not ALERT_LEVELS[alert_level]['sound'] and alert_active and audio_available:
+                try:
+                    pygame.mixer.music.stop()
+                    alert_active = False
+                except Exception as e:
+                    print(f"Warning: Could not stop alert sound ({str(e)})")
+            elif not audio_available:
+                # Visual-only alert when audio is not available
+                alert_active = ALERT_LEVELS[alert_level]['sound']
             
             # Affichage des informations
             cv2.putText(image, f"Niveau: {alert_level}", (10, 30),
@@ -382,7 +397,8 @@ def main():
     
     cap.release()
     cv2.destroyAllWindows()
-    pygame.mixer.quit()
+    if audio_available:
+        pygame.mixer.quit()
 
 if __name__ == "__main__":
     # Création des dossiers et fichiers nécessaires

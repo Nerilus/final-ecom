@@ -40,6 +40,8 @@ User=root
 WorkingDirectory=/opt/drowsiness_detector
 Environment=DISPLAY=:0
 Environment=PYTHONPATH=/opt/drowsiness_detector
+Environment=SDL_AUDIODRIVER=dummy
+Environment=AUDIODEV=null
 ExecStart=/opt/drowsiness_detector/venv/bin/python main.py
 Restart=always
 RestartSec=3
