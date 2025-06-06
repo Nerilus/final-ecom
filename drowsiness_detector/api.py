@@ -605,3 +605,9 @@ async def root():
 async def health_check():
     """Endpoint de vérification de l'état de l'API"""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()} 
+
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=80)
