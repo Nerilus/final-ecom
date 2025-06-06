@@ -4,7 +4,7 @@
 setuptools>=65.5.1
 wheel>=0.38.4
 numpy==1.23.5
-opencv-python==4.7.0.72
+opencv-python-headless==4.7.0.72
 mediapipe==0.10.5
 pygame==2.5.2
 pyinstaller==6.3.0
