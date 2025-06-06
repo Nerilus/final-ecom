@@ -28,6 +28,17 @@ EOL
     pulseaudio -D --system
 }
 
+# Démarrage de Xvfb
+start_xvfb() {
+    echo "Démarrage de Xvfb..."
+    if pgrep Xvfb > /dev/null; then
+        pkill Xvfb
+    fi
+    Xvfb :0 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+    export DISPLAY=:0
+    sleep 2
+}
+
 echo "1. Mise à jour du système..."
 apt update && apt upgrade -y
 
@@ -48,8 +59,14 @@ echo "4. Configuration de l'environnement Python..."
 cd $PROJECT_DIR
 python3 -m venv venv
 source venv/bin/activate
+
+echo "Installation des dépendances Python..."
 pip install --upgrade pip
+pip install wheel setuptools
 pip install -r requirements.txt
+
+# Démarrage de Xvfb
+start_xvfb
 
 echo "5. Configuration du service systemd..."
 cat > /etc/systemd/system/drowsiness_detector.service << EOL
@@ -64,7 +81,7 @@ WorkingDirectory=$PROJECT_DIR
 Environment=DISPLAY=:0
 Environment=PULSE_SERVER=unix:/run/pulse/native
 Environment=PYTHONPATH=$PROJECT_DIR
-ExecStartPre=/usr/bin/Xvfb :0 -screen 0 1920x1080x24 &
+ExecStartPre=/usr/bin/bash -c '/usr/bin/Xvfb :0 -screen 0 1920x1080x24 > /dev/null 2>&1 &'
 ExecStart=$PROJECT_DIR/venv/bin/python main.py
 Restart=always
 RestartSec=3
@@ -87,14 +104,19 @@ systemctl enable drowsiness_detector
 systemctl start drowsiness_detector
 
 echo "9. Vérification du statut..."
+sleep 5
 systemctl status drowsiness_detector
 
 echo "=============================================="
 echo "Installation terminée !"
 echo "Pour voir les logs : sudo journalctl -u drowsiness_detector -f"
 echo "Pour vérifier le statut : sudo systemctl status drowsiness_detector"
-echo "Pour tester l'audio : paplay /usr/share/sounds/alsa/Front_Center.wav"
 echo "=============================================="
+
+# Test de l'environnement
+echo "Test de l'environnement..."
+source $PROJECT_DIR/venv/bin/activate
+python3 $PROJECT_DIR/test_audio.py
 
 # Création d'un script de test audio
 cat > $PROJECT_DIR/test_audio.py << EOL
