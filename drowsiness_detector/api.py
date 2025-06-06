@@ -214,31 +214,214 @@ async def root():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Test de Détection de Somnolence</title>
+        <title>Système de Détection de Somnolence</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            #videoElement { width: 640px; height: 480px; background-color: #666; }
-            #results { margin-top: 20px; }
-            .error { color: red; }
-            .success { color: green; }
-            .warning { color: orange; }
-            .danger { color: red; font-weight: bold; }
-            .alarm-active { 
-                animation: blink 1s infinite;
-                background-color: rgba(255, 0, 0, 0.2);
+            :root {
+                --primary-color: #2c3e50;
+                --secondary-color: #3498db;
+                --success-color: #2ecc71;
+                --warning-color: #f1c40f;
+                --danger-color: #e74c3c;
+                --background-color: #ecf0f1;
+                --card-background: #ffffff;
+            }
+
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background-color: var(--background-color);
+                color: var(--primary-color);
+                line-height: 1.6;
+                padding: 20px;
+            }
+
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+
+            header {
+                text-align: center;
+                margin-bottom: 30px;
+                padding: 20px;
+                background: var(--primary-color);
+                color: white;
+                border-radius: 10px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            }
+
+            h1 {
+                font-size: 2.5em;
+                margin-bottom: 10px;
+            }
+
+            .subtitle {
+                font-size: 1.2em;
+                color: rgba(255, 255, 255, 0.8);
+            }
+
+            .main-content {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+                margin-top: 20px;
+            }
+
+            .video-container {
+                background: var(--card-background);
+                padding: 20px;
+                border-radius: 10px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            }
+
+            #videoElement {
+                width: 100%;
+                border-radius: 5px;
+                background-color: #666;
+            }
+
+            .results-container {
+                background: var(--card-background);
+                padding: 20px;
+                border-radius: 10px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            }
+
+            .status-card {
+                margin-bottom: 20px;
+                padding: 15px;
+                border-radius: 5px;
+                background: rgba(255, 255, 255, 0.9);
+                border-left: 4px solid var(--secondary-color);
+            }
+
+            .metric {
+                margin: 15px 0;
                 padding: 10px;
                 border-radius: 5px;
+                background: rgba(0, 0, 0, 0.05);
             }
+
+            .metric-title {
+                font-weight: bold;
+                color: var(--primary-color);
+                margin-bottom: 5px;
+            }
+
+            .metric-value {
+                font-size: 1.1em;
+            }
+
+            .error { 
+                color: var(--danger-color);
+                padding: 10px;
+                border-radius: 5px;
+                background: rgba(231, 76, 60, 0.1);
+            }
+
+            .success { 
+                color: var(--success-color);
+                padding: 10px;
+                border-radius: 5px;
+                background: rgba(46, 204, 113, 0.1);
+            }
+
+            .warning { 
+                color: var(--warning-color);
+                padding: 10px;
+                border-radius: 5px;
+                background: rgba(241, 196, 15, 0.1);
+            }
+
+            .danger { 
+                color: var(--danger-color);
+                padding: 10px;
+                border-radius: 5px;
+                background: rgba(231, 76, 60, 0.1);
+            }
+
+            .alarm-active {
+                animation: blink 1s infinite;
+                background: rgba(231, 76, 60, 0.2);
+                padding: 15px;
+                border-radius: 5px;
+                margin: 10px 0;
+                text-align: center;
+                font-weight: bold;
+                font-size: 1.2em;
+            }
+
             @keyframes blink {
-                50% { background-color: rgba(255, 0, 0, 0.4); }
+                0% { background: rgba(231, 76, 60, 0.2); }
+                50% { background: rgba(231, 76, 60, 0.4); }
+                100% { background: rgba(231, 76, 60, 0.2); }
+            }
+
+            .alert-badge {
+                display: inline-block;
+                padding: 5px 10px;
+                border-radius: 15px;
+                font-weight: bold;
+            }
+
+            .alert-badge.normal {
+                background: var(--success-color);
+                color: white;
+            }
+
+            .alert-badge.warning {
+                background: var(--warning-color);
+                color: var(--primary-color);
+            }
+
+            .alert-badge.danger {
+                background: var(--danger-color);
+                color: white;
+            }
+
+            @media (max-width: 768px) {
+                .main-content {
+                    grid-template-columns: 1fr;
+                }
+
+                .container {
+                    padding: 10px;
+                }
+
+                h1 {
+                    font-size: 2em;
+                }
             }
         </style>
     </head>
     <body>
-        <h1>Test de Détection de Somnolence</h1>
-        <div id="status"></div>
-        <video id="videoElement" autoplay></video>
-        <div id="results"></div>
+        <div class="container">
+            <header>
+                <h1>Système de Détection de Somnolence</h1>
+                <p class="subtitle">Surveillance en temps réel pour une conduite plus sûre</p>
+            </header>
+
+            <div class="main-content">
+                <div class="video-container">
+                    <h2>Flux Vidéo</h2>
+                    <video id="videoElement" autoplay></video>
+                    <div id="status" class="status-card"></div>
+                </div>
+
+                <div class="results-container">
+                    <h2>Analyse en Temps Réel</h2>
+                    <div id="results"></div>
+                </div>
+            </div>
+        </div>
 
         <script>
             const video = document.getElementById('videoElement');
@@ -246,14 +429,13 @@ async def root():
             const status = document.getElementById('status');
             let ws = null;
 
-            // Fonction pour formater le niveau d'alerte
             function formatAlertLevel(level, isAlarmActive) {
                 const className = level.toLowerCase();
+                const badgeClass = `alert-badge ${className}`;
                 const alarmClass = isAlarmActive ? 'alarm-active' : '';
-                return `<span class="${className} ${alarmClass}">${level}</span>`;
+                return `<span class="${badgeClass}">${level}</span> ${isAlarmActive ? '<div class="alarm-active">⚠️ ALARME ACTIVE - Attention danger !</div>' : ''}`;
             }
 
-            // Démarrer la webcam avec gestion d'erreurs
             async function startCamera() {
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -264,19 +446,21 @@ async def root():
                         } 
                     });
                     video.srcObject = stream;
-                    status.innerHTML = '<p class="success">Caméra activée avec succès</p>';
+                    status.innerHTML = '<p class="success">✓ Caméra activée avec succès</p>';
                     connectWebSocket();
                 } catch (err) {
                     console.error('Erreur camera:', err);
                     status.innerHTML = `
-                        <p class="error">Erreur d'accès à la caméra: ${err.message}</p>
-                        <p>Solutions possibles:</p>
-                        <ul>
-                            <li>Assurez-vous que votre caméra est connectée et fonctionne</li>
-                            <li>Autorisez l'accès à la caméra dans les paramètres de votre navigateur</li>
-                            <li>Si vous utilisez Chrome, accédez à chrome://flags/#unsafely-treat-insecure-origin-as-secure, 
-                                ajoutez "http://localhost:8000" et activez l'option</li>
-                        </ul>
+                        <div class="error">
+                            <h3>❌ Erreur d'accès à la caméra</h3>
+                            <p>${err.message}</p>
+                            <h4>Solutions possibles :</h4>
+                            <ul>
+                                <li>Vérifiez que votre caméra est connectée et fonctionne</li>
+                                <li>Autorisez l'accès à la caméra dans les paramètres du navigateur</li>
+                                <li>Pour Chrome : activez l'option dans chrome://flags/#unsafely-treat-insecure-origin-as-secure</li>
+                            </ul>
+                        </div>
                     `;
                 }
             }
@@ -289,38 +473,63 @@ async def root():
                 
                 ws.onopen = () => {
                     console.log('Connected to WebSocket');
-                    status.innerHTML += '<p class="success">Connexion WebSocket établie</p>';
+                    status.innerHTML += '<p class="success">✓ Connexion WebSocket établie</p>';
                     sendImages();
                 };
 
                 ws.onmessage = (event) => {
                     const data = JSON.parse(event.data);
                     if (data.error) {
-                        results.innerHTML = `<p class="error">Erreur: ${data.error}</p>`;
+                        results.innerHTML = `<div class="error">❌ Erreur: ${data.error}</div>`;
                         return;
                     }
                     results.innerHTML = `
-                        <p>Niveau d'alerte: ${formatAlertLevel(data.alert_level, data.alarm_active)}</p>
-                        <p>État des yeux: Gauche ${data.eyes_state.left.toFixed(3)}, Droite ${data.eyes_state.right.toFixed(3)}</p>
-                        <p>État de la bouche: MAR ${data.mouth_state.mar.toFixed(3)}</p>
-                        <p>Position de la tête: ${data.head_position.turned ? 'Tournée' : 'Normale'} 
-                            ${data.head_position.direction_h ? `(${data.head_position.direction_h})` : ''}, 
-                            ${data.head_position.tilted ? 'Inclinée' : 'Droite'}
-                            ${data.head_position.direction_v ? `(${data.head_position.direction_v})` : ''}</p>
-                        <p>Téléphone détecté: ${data.phone_detected ? 'Oui' : 'Non'}</p>
-                        ${data.alarm_active ? '<p class="danger alarm-active">⚠️ ALARME ACTIVE - Attention danger !</p>' : ''}
+                        <div class="metric">
+                            <div class="metric-title">Niveau d'Alerte</div>
+                            <div class="metric-value">${formatAlertLevel(data.alert_level, data.alarm_active)}</div>
+                        </div>
+
+                        <div class="metric">
+                            <div class="metric-title">État des Yeux</div>
+                            <div class="metric-value">
+                                Gauche: ${data.eyes_state.left.toFixed(3)}
+                                Droite: ${data.eyes_state.right.toFixed(3)}
+                            </div>
+                        </div>
+
+                        <div class="metric">
+                            <div class="metric-title">État de la Bouche</div>
+                            <div class="metric-value">MAR: ${data.mouth_state.mar.toFixed(3)}</div>
+                        </div>
+
+                        <div class="metric">
+                            <div class="metric-title">Position de la Tête</div>
+                            <div class="metric-value">
+                                ${data.head_position.turned ? '↔️ Tournée' : '✓ Normale'} 
+                                ${data.head_position.direction_h ? `(${data.head_position.direction_h})` : ''}<br>
+                                ${data.head_position.tilted ? '↕️ Inclinée' : '✓ Droite'}
+                                ${data.head_position.direction_v ? `(${data.head_position.direction_v})` : ''}
+                            </div>
+                        </div>
+
+                        <div class="metric">
+                            <div class="metric-title">Utilisation du Téléphone</div>
+                            <div class="metric-value">
+                                ${data.phone_detected ? '📱 Détecté' : '✓ Aucun téléphone détecté'}
+                            </div>
+                        </div>
                     `;
                 };
 
                 ws.onclose = () => {
                     console.log('WebSocket closed');
-                    status.innerHTML += '<p>Connexion WebSocket perdue, tentative de reconnexion...</p>';
+                    status.innerHTML += '<p class="warning">⚠️ Connexion perdue, tentative de reconnexion...</p>';
                     setTimeout(connectWebSocket, 1000);
                 };
 
                 ws.onerror = (error) => {
                     console.error('WebSocket error:', error);
-                    status.innerHTML += `<p class="error">Erreur WebSocket: ${error.message}</p>`;
+                    status.innerHTML += `<p class="error">❌ Erreur WebSocket: ${error.message}</p>`;
                 };
             }
 
@@ -336,13 +545,12 @@ async def root():
                         ws.send(imageData);
                     } catch (error) {
                         console.error('Error sending image:', error);
-                        status.innerHTML += `<p class="error">Erreur d'envoi d'image: ${error.message}</p>`;
+                        status.innerHTML += `<p class="error">❌ Erreur d'envoi d'image: ${error.message}</p>`;
                     }
                 }
                 setTimeout(sendImages, 100);
             }
 
-            // Démarrer la caméra au chargement
             startCamera();
         </script>
     </body>
